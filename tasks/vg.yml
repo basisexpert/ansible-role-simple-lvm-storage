@@ -1,0 +1,25 @@
+---
+#
+
+- name: Ensure volume group '{{ __lvm_vg_name }}' is created
+  lvg:
+    vg: "{{ __lvm_vg_name }}"
+    pvs: "{{ __lvm_vg_disks }}"
+    state: present
+    pvresize: true
+
+- name: Ensure volumes of volume group '{{ __lvm_vg_name }}' are created
+  vars:
+    __lvm_lv_name: "{{ __lvm_vg_volume.name }}"
+    __lvm_lv_size: "{{ __lvm_vg_volume.size }}"
+    __lvm_lv_mount_point: "{{ __lvm_vg_volume.mount_point | default('') }}"
+    __lvm_lv_fs_type: "{{ __lvm_vg_volume.fs_type }}"
+    __lvm_lv_fs_label: "{{ __lvm_vg_volume.fs_label | default('') }}"
+    __lvm_lv_owner: "{{ __lvm_vg_volume.owner | default(omit) }}"
+    __lvm_lv_group: "{{ __lvm_vg_volume.group | default(omit) }}"
+    __lvm_lv_mode: "{{ __lvm_vg_volume.mode | default(omit) }}"
+  include_tasks: lv.yml
+  loop_control:
+    loop_var: __lvm_vg_volume
+  loop: "{{ __lvm_vg_volumes }}"
+  when: __lvm_vg_volumes is defined

@@ -1,0 +1,7 @@
+---
+- name: Converge
+  hosts: all
+  tasks:
+    - name: "Include mprusov.simple_lvm_storage"
+      include_role:
+        name: "mprusov.simple_lvm_storage"

@@ -1,0 +1,103 @@
+---
+#
+
+- name: Ensure logical volume '/dev/{{ __lvm_vg_name }}/{{ __lvm_lv_name }}' exists and has right size
+  lvol:
+    vg: "{{ __lvm_vg_name }}"
+    lv: "{{ __lvm_lv_name }}"
+    size: "{{ __lvm_lv_size }}"
+    resizefs: true
+
+- name: Ensure logical volume '/dev/{{ __lvm_vg_name }}/{{ __lvm_lv_name }}' is formatted
+  filesystem:
+    fstype: "{{ __lvm_lv_fs_type }}"
+    dev: "/dev/{{ __lvm_vg_name }}/{{ __lvm_lv_name }}"
+    resizefs: false
+
+- block:
+
+    - name: Check mount point '{{ __lvm_lv_mount_point }}'
+      stat:
+        path: "{{ __lvm_lv_mount_point }}"
+        get_md5: false
+      register: __mount_point_file
+      changed_when: false
+      check_mode: false
+
+    - name: Ensure filesystem mount point '{{ __lvm_lv_mount_point }}' exists
+      file:
+        path: "{{ __lvm_lv_mount_point }}"
+        state: directory
+        mode: '0750'
+      when:
+        - __mount_point_file is defined
+        - not __mount_point_file.stat.exists
+
+    - block:
+
+        - name: Determine mount point of directory {{ __lvm_lv_mount_point }}
+          command: "/usr/bin/env stat -c '%m' {{ __lvm_lv_mount_point }}"
+          register: __mount_point_dir
+          changed_when: __mount_point_dir.stdout != __lvm_lv_mount_point
+          check_mode: false
+
+        - name: Label xfs filesystem {{ __lvm_lv_mount_point }} if not mounted
+          command: "xfs_admin -L {{ __lvm_lv_fs_label }} /dev/{{ __lvm_vg_name }}/{{ __lvm_lv_name }}"
+          when: __mount_point_dir.stdout != __lvm_lv_mount_point
+
+      when:
+        - __lvm_lv_fs_label is defined
+        - __lvm_lv_fs_label|length > 0
+
+    - name: Ensure filesystem '{{ __lvm_lv_mount_point }}' is mounted
+      mount:
+        path: "{{ __lvm_lv_mount_point | default(omit) }}"
+        src: "/dev/{{ __lvm_vg_name }}/{{ __lvm_lv_name }}"
+        fstype: "{{ __lvm_lv_fs_type }}"
+        state: mounted
+      when: __lvm_lv_fs_label is not defined or __lvm_lv_fs_label|length == 0
+
+    - name: Ensure filesystem '{{ __lvm_lv_mount_point }}' is mounted
+      mount:
+        path: "{{ __lvm_lv_mount_point | default(omit) }}"
+        src: "LABEL={{ __lvm_lv_fs_label }}"
+        fstype: "{{ __lvm_lv_fs_type }}"
+        state: mounted
+      when:
+        - __lvm_lv_fs_label is defined
+        - __lvm_lv_fs_label | length > 0
+
+    - name: Ensure filesystem mount point '{{ __lvm_lv_mount_point }}' has right permissions
+      file:
+        path: "{{ __lvm_lv_mount_point }}"
+        state: directory
+        owner: "{{ __lvm_lv_owner | default(omit) }}"
+        group: "{{ __lvm_lv_group | default(omit) }}"
+        mode: "{{ __lvm_lv_mode | default(omit) }}"
+
+  when:
+    - __lvm_lv_mount_point is defined
+    - __lvm_lv_mount_point|length>0
+
+- name: Ensure filesystem '/dev/{{ __lvm_vg_name }}/{{ __lvm_lv_name }}' is resized
+  filesystem:
+    device: "/dev/{{ __lvm_vg_name }}/{{ __lvm_lv_name }}"
+    fstype: "{{ __lvm_lv_fs_type }}"
+    resizefs: true
+  when:
+    __lvm_lv_fs_type != 'swap'
+
+- block:
+
+    - name: Ensure swap-entry for /dev/{{ __lvm_vg_name }}/{{ __lvm_lv_name }} is exists in '/etc/fstab'
+      lineinfile:
+        path: /etc/fstab
+        regexp: "^/dev/{{ __lvm_vg_name }}/{{ __lvm_lv_name }}"
+        line: "/dev/{{ __lvm_vg_name }}/{{ __lvm_lv_name }} swap swap defaults  0   0"
+
+    - name: Ensure new swap is activated
+      command: swapon -a
+      changed_when: true
+
+  when:
+    __lvm_lv_fs_type == 'swap'

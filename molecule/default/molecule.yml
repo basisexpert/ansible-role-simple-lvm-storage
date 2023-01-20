@@ -1,0 +1,33 @@
+---
+dependency:
+  name: galaxy
+  options:
+    ignore-certs: True
+    ignore-errors: True
+
+driver:
+  name: docker
+
+platforms:
+  - name: centos-7
+    image: registry.centos.org/centos/systemd:latest
+    volumes:
+      - /sys/fs/cgroup:/sys/fs/cgroup:ro
+    privileged: true
+
+  # - name: instance
+  #   image: quay.io/centos/centos:stream8
+  #   pre_build_image: true
+  #   volumes:
+  #     - vol1
+
+provisioner:
+  name: ansible
+
+verifier:
+  name: ansible
+
+lint: |
+  set -e
+  yamllint .
+  ansible-lint .

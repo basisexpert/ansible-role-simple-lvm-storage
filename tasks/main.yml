@@ -1,0 +1,20 @@
+---
+# tasks file for simple_lvm_storage
+
+- block:
+
+  - name: Display information about storage pools to configure
+    debug:
+      var: lvm_storage_pools
+
+  - name: Ensure storage volume groups are created
+    vars:
+      __lvm_vg_name: "{{ __lvm_storage_pool.name }}"
+      __lvm_vg_disks: "{{ __lvm_storage_pool.disks }}"
+      __lvm_vg_volumes: "{{ __lvm_storage_pool.volumes | default([]) }}"
+    include_tasks: vg.yml
+    loop_control:
+      loop_var: __lvm_storage_pool
+    loop: "{{ lvm_storage_pools }}"
+
+  when: lvm_storage_pools is defined
