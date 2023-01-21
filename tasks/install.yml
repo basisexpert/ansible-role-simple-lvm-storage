@@ -1,0 +1,6 @@
+---
+
+- name: Ensure software for lvm are installed
+  ansible.builtin.package:
+    name: lvm2
+    state: present

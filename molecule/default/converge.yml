@@ -1,7 +1,15 @@
 ---
+
 - name: Converge
   hosts: all
-  tasks:
-    - name: "Include mprusov.simple_lvm_storage"
-      include_role:
-        name: "mprusov.simple_lvm_storage"
+
+#- import_playbook: ../../tests/prepare_tests.yml
+- import_playbook: ../../tests/tests_default.yml
+- import_playbook: ../../tests/tests_simple.yml
+
+  # tasks:
+  #   - name: "Include mprusov.simple_lvm_storage"
+  #     include_role:
+  #       name: "mprusov.simple_lvm_storage"
+  #     vars:
+  #       lvm_storage_pools: []

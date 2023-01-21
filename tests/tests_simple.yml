@@ -1,0 +1,24 @@
+---
+
+- name: Ensure that the role runs with default parameters
+  hosts: all
+  gather_facts: false
+  vars:
+    lvm_storage_pools:
+      - name: testvg
+        disks:
+          - /dev/loop3
+        volumes:
+          - name: testlv
+            mount_point: /test
+            fs_label: TEST
+            state: present
+            size: 100M
+            fs_type: xfs
+
+  tasks:
+    - name: aa
+      ansible.builtin.include_role:
+        name: mprusov.simple_lvm_storage
+
+#  post_tasks:

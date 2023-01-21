@@ -1,31 +1,37 @@
 ---
 #
 
-- name: Ensure logical volume '/dev/{{ __lvm_vg_name }}/{{ __lvm_lv_name }}' exists and has right size
-  lvol:
+- name: Ensure filesystem type is supported "{{ __lvm_lv_fs_type }}"
+  ansible.builtin.assert:
+    that: __lvm_lv_fs_type in [ 'xfs', 'swap' ]
+    fail_msg: "{{ __lvm_lv_fs_type }} must be in [ 'xfs', 'swap' ]"
+
+- name: Ensure logical volume exists and has right size {{ __lvm_vg_name + '-' + __lvm_lv_name }}
+  community.general.lvol:
     vg: "{{ __lvm_vg_name }}"
     lv: "{{ __lvm_lv_name }}"
     size: "{{ __lvm_lv_size }}"
     resizefs: true
 
-- name: Ensure logical volume '/dev/{{ __lvm_vg_name }}/{{ __lvm_lv_name }}' is formatted
-  filesystem:
-    fstype: "{{ __lvm_lv_fs_type }}"
+- name: Ensure logical volume is formatted {{ __lvm_vg_name + '-' + __lvm_lv_name }}'
+  community.general.filesystem:
     dev: "/dev/{{ __lvm_vg_name }}/{{ __lvm_lv_name }}"
+    fstype: "{{ __lvm_lv_fs_type }}"
     resizefs: false
 
-- block:
-
-    - name: Check mount point '{{ __lvm_lv_mount_point }}'
-      stat:
+- name: Ensure mount point is prepared {{ __lvm_lv_mount_point }}
+  when: __lvm_lv_mount_point | d('') | length > 0
+  block:
+    - name: Check mount point {{ __lvm_lv_mount_point }}
+      ansible.builtin.stat:
         path: "{{ __lvm_lv_mount_point }}"
         get_md5: false
       register: __mount_point_file
       changed_when: false
       check_mode: false
 
-    - name: Ensure filesystem mount point '{{ __lvm_lv_mount_point }}' exists
-      file:
+    - name: Ensure filesystem mount point exists {{ __lvm_lv_mount_point }}
+      ansible.builtin.file:
         path: "{{ __lvm_lv_mount_point }}"
         state: directory
         mode: '0750'
@@ -33,33 +39,32 @@
         - __mount_point_file is defined
         - not __mount_point_file.stat.exists
 
-    - block:
-
+    - name: Try to label xfs filesystem {{ __lvm_lv_mount_point }}
+      when:
+        - __lvm_lv_fs_label | d('') | length > 0
+        - __lvm_lv_fs_type == 'xfs'
+      block:
         - name: Determine mount point of directory {{ __lvm_lv_mount_point }}
-          command: "/usr/bin/env stat -c '%m' {{ __lvm_lv_mount_point }}"
+          ansible.builtin.command: "/usr/bin/env stat -c '%m' {{ __lvm_lv_mount_point }}"
           register: __mount_point_dir
           changed_when: __mount_point_dir.stdout != __lvm_lv_mount_point
           check_mode: false
 
-        - name: Label xfs filesystem {{ __lvm_lv_mount_point }} if not mounted
-          command: "xfs_admin -L {{ __lvm_lv_fs_label }} /dev/{{ __lvm_vg_name }}/{{ __lvm_lv_name }}"
+        - name: Label xfs filesystem if not mounted {{ __lvm_lv_mount_point }}
+          ansible.builtin.command: "xfs_admin -L {{ __lvm_lv_fs_label }} /dev/{{ __lvm_vg_name }}/{{ __lvm_lv_name }}"
           when: __mount_point_dir.stdout != __lvm_lv_mount_point
 
-      when:
-        - __lvm_lv_fs_label is defined
-        - __lvm_lv_fs_label|length > 0
-
-    - name: Ensure filesystem '{{ __lvm_lv_mount_point }}' is mounted
-      mount:
-        path: "{{ __lvm_lv_mount_point | default(omit) }}"
+    - name: Ensure filesystem is mounted {{ __lvm_lv_mount_point }}
+      ansible.posix.mount:
+        path: "{{ __lvm_lv_mount_point }}"
         src: "/dev/{{ __lvm_vg_name }}/{{ __lvm_lv_name }}"
         fstype: "{{ __lvm_lv_fs_type }}"
         state: mounted
       when: __lvm_lv_fs_label is not defined or __lvm_lv_fs_label|length == 0
 
-    - name: Ensure filesystem '{{ __lvm_lv_mount_point }}' is mounted
-      mount:
-        path: "{{ __lvm_lv_mount_point | default(omit) }}"
+    - name: Ensure filesystem is mounted by label {{ __lvm_lv_mount_point }}
+      ansible.posix.mount:
+        path: "{{ __lvm_lv_mount_point }}"
         src: "LABEL={{ __lvm_lv_fs_label }}"
         fstype: "{{ __lvm_lv_fs_type }}"
         state: mounted
@@ -67,37 +72,31 @@
         - __lvm_lv_fs_label is defined
         - __lvm_lv_fs_label | length > 0
 
-    - name: Ensure filesystem mount point '{{ __lvm_lv_mount_point }}' has right permissions
-      file:
+    - name: Ensure filesystem mount point has right permissions {{ __lvm_lv_mount_point }}
+      ansible.builtin.file:
         path: "{{ __lvm_lv_mount_point }}"
         state: directory
         owner: "{{ __lvm_lv_owner | default(omit) }}"
         group: "{{ __lvm_lv_group | default(omit) }}"
         mode: "{{ __lvm_lv_mode | default(omit) }}"
 
-  when:
-    - __lvm_lv_mount_point is defined
-    - __lvm_lv_mount_point|length>0
-
-- name: Ensure filesystem '/dev/{{ __lvm_vg_name }}/{{ __lvm_lv_name }}' is resized
-  filesystem:
+- name: Ensure filesystem is resized /dev/{{ __lvm_vg_name + '/' + __lvm_lv_name }}
+  community.general.filesystem:
     device: "/dev/{{ __lvm_vg_name }}/{{ __lvm_lv_name }}"
     fstype: "{{ __lvm_lv_fs_type }}"
     resizefs: true
   when:
     __lvm_lv_fs_type != 'swap'
 
-- block:
-
-    - name: Ensure swap-entry for /dev/{{ __lvm_vg_name }}/{{ __lvm_lv_name }} is exists in '/etc/fstab'
-      lineinfile:
+- name: Ensure swap volume is configured /dev/{{ __lvm_vg_name + '/' + __lvm_lv_name }}
+  when: __lvm_lv_fs_type == 'swap'
+  block:
+    - name: Ensure swap-entry is exists in fstab /dev/{{ __lvm_vg_name + '/' + __lvm_lv_name }}
+      ansible.builtin.lineinfile:
         path: /etc/fstab
         regexp: "^/dev/{{ __lvm_vg_name }}/{{ __lvm_lv_name }}"
         line: "/dev/{{ __lvm_vg_name }}/{{ __lvm_lv_name }} swap swap defaults  0   0"
 
     - name: Ensure new swap is activated
-      command: swapon -a
+      ansible.builtin.command: swapon -a
       changed_when: true
-
-  when:
-    __lvm_lv_fs_type == 'swap'

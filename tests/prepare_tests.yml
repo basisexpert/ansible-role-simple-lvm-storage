@@ -1,0 +1,12 @@
+---
+
+- name: Ensure that the role runs with default parameters
+  hosts: all
+  gather_facts: false
+
+  tasks:
+    - name: Ensure loopback devices are prepared
+      ansible.builtin.shell:
+        cmd: >
+          losetup -D && dd if=/dev/zero of=/loopbackfile-0.img bs=100M count=10 && losetup -fP /loopbackfile-0.img
+      changed_when: true

@@ -2,27 +2,36 @@
 dependency:
   name: galaxy
   options:
-    ignore-certs: True
-    ignore-errors: True
+    ignore-certs: true
 
 driver:
   name: docker
 
 platforms:
-  - name: centos-7
-    image: registry.centos.org/centos/systemd:latest
+  # - name: simple-lvm-storage-centos-7
+  #   image: registry.centos.org/centos/systemd:latest
+  #   privileged: true
+  #   volumes:
+  #     - /sys/fs/cgroup:/sys/fs/cgroup:ro
+  #   service_manager: ${MOLECULE_SERVICE_MANAGER:-systemd}
+  #   capabilities:
+  #     - SYS_ADMIN
+  #   command: /sbin/init
+
+  - name: centos-8-systemd
+    hostname: centos
+    image: mpaivabarbosa/molecule-systemd-centos:8
     volumes:
       - /sys/fs/cgroup:/sys/fs/cgroup:ro
     privileged: true
-
-  # - name: instance
-  #   image: quay.io/centos/centos:stream8
-  #   pre_build_image: true
-  #   volumes:
-  #     - vol1
+    pre_build_image: true
+    override_command: false
 
 provisioner:
   name: ansible
+  log: true
+  playbooks:
+    converge: ${MOLECULE_PLAYBOOK:-converge.yml}
 
 verifier:
   name: ansible

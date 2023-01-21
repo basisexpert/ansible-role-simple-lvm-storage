@@ -1,2 +1,5 @@
 ---
 # defaults file for simple_lvm_storage
+
+lvm_storage_pools: []
+lvm_storage_install_software: true

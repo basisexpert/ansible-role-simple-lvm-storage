@@ -1,20 +1,23 @@
 ---
 # tasks file for simple_lvm_storage
 
-- block:
+- name: Ensure software for simple lvm storage is installed
+  ansible.builtin.import_tasks: install.yml
+  when: lvm_storage_install_software | d(false) | bool
 
-  - name: Display information about storage pools to configure
-    debug:
-      var: lvm_storage_pools
-
-  - name: Ensure storage volume groups are created
-    vars:
-      __lvm_vg_name: "{{ __lvm_storage_pool.name }}"
-      __lvm_vg_disks: "{{ __lvm_storage_pool.disks }}"
-      __lvm_vg_volumes: "{{ __lvm_storage_pool.volumes | default([]) }}"
-    include_tasks: vg.yml
-    loop_control:
-      loop_var: __lvm_storage_pool
-    loop: "{{ lvm_storage_pools }}"
-
+- name: Ensure storage volume groups are prepared if defined
   when: lvm_storage_pools is defined
+  block:
+    - name: Display information about storage pools to configure
+      ansible.builtin.debug:
+        var: lvm_storage_pools
+
+    - name: Ensure storage volume groups are prepared
+      vars:
+        __lvm_vg_name: "{{ __lvm_storage_pool.name }}"
+        __lvm_vg_disks: "{{ __lvm_storage_pool.disks }}"
+        __lvm_vg_volumes: "{{ __lvm_storage_pool.volumes | default([]) }}"
+      ansible.builtin.include_tasks: vg.yml
+      loop_control:
+        loop_var: __lvm_storage_pool
+      loop: "{{ lvm_storage_pools }}"
