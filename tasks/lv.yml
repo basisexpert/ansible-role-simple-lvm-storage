@@ -25,7 +25,7 @@
     - name: Check mount point {{ __lvm_lv_mount_point }}
       ansible.builtin.stat:
         path: "{{ __lvm_lv_mount_point }}"
-        get_md5: false
+        get_checksum: false
       register: __mount_point_file
       changed_when: false
       check_mode: false
